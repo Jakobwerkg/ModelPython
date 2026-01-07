@@ -23,7 +23,7 @@ thl = 150.0  # domain depth  [K]
 nz = 60  # vertical resolution
 dt = 5  # time step [s]
 diff = 0.02  # (horizontal) diffusion coefficient
-time = 24 * 60 * 60  # integration time [s]
+time = 1 * 60 * 60  # integration time [s]
 
 # Topography
 # -------------------------------------------------
@@ -64,7 +64,7 @@ imoist = 1  # include moisture (0 = dry, 1 = moist)
 imoist_diff = 1  # apply diffusion to qv, qc, qr (0 = off, 1 = on)
 imicrophys = 2  # include microphysics (0 = off, 1 = kessler, 2 = two moment)
 idthdt = 1  # couple physics to dynamics (0 = off, 1 = on)
-iern = 1  # evaporation of rain droplets (0 = off, 1 = on)
+iern = 0  # evaporation of rain droplets (0 = off, 1 = on)
 
 # Options for Kessler scheme
 # -------------------------------------------------

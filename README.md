@@ -1,5 +1,3 @@
-
-#alllo, ja kilian
 # A mountain flow model in Python
 
 This repository contains the full mountain flow model in Python for the course

@@ -553,7 +553,7 @@ if __name__ == "__main__":
         # *** time step for isentropic mass density ***
         #
 
-        snew = prog_isendens(sold, snow, unow, dtdx)
+        snew = prog_isendens(sold, snow, unow, dtdx, dthetadt=dthetadt)
 
         #
         # *** Exercise 2.1 isentropic mass density ***
@@ -571,16 +571,16 @@ if __name__ == "__main__":
         # *** Exercise 4.1 / 5.1 moisture scalars ***
 
             qvnew, qcnew, qrnew = prog_moisture(unow, qvold, qcold, qrold,
-                                                qvnow, qcnow, qrnow, dtdx)
+                                                qvnow, qcnow, qrnow, dtdx, dthetadt=dthetadt)
         # two-moment scheme: advect number densities
             if imicrophys == 2:
-                ncnew, nrnew = prog_numdens(unow, ncold, nrold, ncnow, nrnow, dtdx) 
+                ncnew, nrnew = prog_numdens(unow, ncold, nrold, ncnow, nrnow, dtdx, dthetadt=dthetadt) 
 
         # *** Exercise 2.1 velocity ***
         # *** time step for momentum ***
         #
 
-        unew = prog_velocity(uold, unow, mtg, dtdx)
+        unew = prog_velocity(uold, unow, mtg, dtdx, dthetadt=dthetadt)
 
         #
         # *** Exercise 2.1 velocity ***
