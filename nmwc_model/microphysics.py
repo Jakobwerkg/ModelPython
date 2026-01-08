@@ -358,9 +358,9 @@ def seifert(
         - zhtnow[ii - 1, kk]
     ) / (4.0 * dx)
     w = np.zeros((nxb, nz))
-    #w[ii,kk] = 0.5*(zhtnow[ii,kk]+zhtnow[ii,kk+1] - zhtold[ii,kk]-zhtold[ii,kk+1]) / dt + 0.5*(u[ii+1,kk)]+u[ii,kk])*dz_dx[ii,kk]
+    # w[ii,kk] = 0.5*(zhtnow[ii,kk]+zhtnow[ii,kk+1] - zhtold[ii,kk]-zhtold[ii,kk+1]) / dt + 0.5*(u[ii+1,kk)]+u[ii,kk])*dz_dx[ii,kk]
     w[ii, kk] = 0.5 * (u[ii + 1, kk] + u[ii, kk]) * dz_dx[ii, kk]
-    if idthdt == 1:
+    if idthdt == 1:  # (idthdt == 1):
         w[ii, kk] = (
             w[ii, kk]
             + 0.5
@@ -405,6 +405,7 @@ def seifert(
         if np.any(ind):
             w_cb[ind, k] = w[ind, k]
 
+    # 
     # parameter for exponential decrease of N_ccn with height:
     z0_nccn = 4000.0  # up to this height (m) constant unchanged value:
     z1e_nccn = (

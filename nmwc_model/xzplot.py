@@ -32,7 +32,18 @@ import matplotlib.widgets as widgets
 import matplotlib.gridspec as gridspec
 from matplotlib.animation import FuncAnimation
 
+from nmwc_model.makesetup import centered_range_profile
+
 from nmwc_model.readsim import readsim
+
+from nmwc_model.namelist import (
+    dx,
+    nxb,
+    itopo2,
+    topo_c1, topo_c2,
+    topo_s1, topo_s2,
+    topo_A1, topo_A2,
+    topomx,topowd)
 
 
 def arg_parser():
@@ -237,6 +248,55 @@ def arg_parser():
 
 
 # -------------------------------------------------------------------------
+def compute_topo_for_plot(var):
+    """
+    Build topo on the SAME x grid as the plotted fields (var.x / var.xp).
+    Returns x_plot [km], topo_plot [km]
+    """
+    x_km = var.x.astype(float)   # use model/output grid directly (km)
+
+    # Use the *output* scaling, not the namelist (avoids unit mismatches)
+    topomx_km = float(var.topomx)   # already km (converted in readsim)
+    topowd_km = float(var.topowd)   # already km (converted in readsim)
+
+    if itopo2 == 1:
+        # Option B: works for both centered or 0..L grids by normalizing with min/max
+        L = x_km.max() - x_km.min()
+        xx = (x_km - x_km.min()) / L  # 0..1
+
+        envelope = np.sin(np.pi * xx)
+        g1 = np.exp(-0.5 * ((xx - topo_c1) / topo_s1) ** 2)
+        g2 = np.exp(-0.5 * ((xx - topo_c2) / topo_s2) ** 2)
+
+        topo_km = topomx_km * envelope * (topo_A1 * g1 + topo_A2 * g2)
+
+        x_plot = x_km
+        topo_plot = topo_km
+
+    elif itopo2 == 2:
+        # New profile: DO NOT re-center; the function normalizes internally anyway
+        topo_km = centered_range_profile(
+            x_km,
+            max_elev=topomx_km,
+            floor=1e-6  # km
+        )
+
+        x_plot = x_km
+        topo_plot = topo_km
+
+    else:
+        # Old Gaussian: centered x (works if x_km is centered, as in standard output)
+        topo_km = topomx_km * np.exp(-((x_km) / topowd_km) ** 2)
+
+        x_plot = x_km
+        topo_plot = topo_km
+
+    return x_plot, topo_plot
+
+
+
+
+
 
 
 def update_im_back(i, data, ax, fig):
@@ -400,7 +460,7 @@ def plot_dict(args, var, varnames):
             fmt="%2i",
             clev=np.arange(vMinInt, vMaxInt + args.vci, args.vci),
             ci=args.vci,
-            cmap=plt.cm.RdBu_r,
+            cmap=plt.cm.YlGnBu,
             scale=scale,
         )
 
@@ -536,7 +596,7 @@ def plot_figure(varnames, var, timestep, plot_cbar):
     )
 
     # Add topography
-    plt.plot(var.xp[0, :], var.topo, "-k")
+    plt.plot(x_plot, topo_plot, "-k")
     plt.ylim(args.zlim)
 
     for varname in varnames:
@@ -656,6 +716,10 @@ if __name__ == "__main__":
 
     # load data
     var = readsim(args.filename[0], varnames)
+
+    
+    x_plot, topo_plot = compute_topo_for_plot(var)
+
 
     # get plotting settings for different varnames
     pd = plot_dict(args, var, varnames)

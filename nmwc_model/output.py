@@ -262,7 +262,7 @@ def write_output(
         dx=dx,
         time=T,
         x=x_out,
-        z=z_out,
+        z=z_out
     )
 
     # write data to binary

@@ -76,7 +76,9 @@ from nmwc_model.namelist import (
     topotim,
     itime,
 )
-
+##----
+#np.seterr(all='raise')   # bewirkt: bei 0/0, div/0, overflow wird eine Exception geworfen
+##----
 
 if __name__ == "__main__":
     # Print the full precision
@@ -126,11 +128,11 @@ if __name__ == "__main__":
     if imoist == 1:
         # precipitation
         prec = np.zeros(nxb)
-        PREC = np.zeros((nout, nx))  # auxiliary field for output
+        PREC = np.zeros((nout, nx))  #  auxiliary field for output
 
         # accumulated precipitation
         tot_prec = np.zeros(nxb)
-        TOT_PREC = np.zeros((nout, nx))  # auxiliary field for output
+        TOT_PREC = np.zeros((nout, nx))  #  auxiliary field for output
 
         # specific humidity
         qvold = np.zeros((nxb, nz))
@@ -368,20 +370,25 @@ if __name__ == "__main__":
     # --------------------------------------
     tau = diff * np.ones(nz)
 
-    #*** Exercise 3.1 height-dependent diffusion coefficient ***
-    #*** edit here ***
+    # *** Exercise 3.1 height-dependent diffusion coefficient ***
+    # *** edit here ***
+    #
+    # *** Exercise 3.1 height-dependent diffusion coefficient ***
     if nab > 0:
-        k = np.arange(nz-nab, nz)  # same size as tau slice
-        tau[nz-nab:nz] += (diffabs-diff) * \
-            (np.sin(np.pi*0.5*((k-(nz-nab-1))/nab)))**2
+        k = np.arange(0, nz)
+        ks = k[nz - nab : nz]
+
+        tau[nz - nab : nz] = diff + (diffabs - diff) * np.sin(
+            (np.pi / 2) * (ks - (nz - nab - 1)) / nab
+        ) ** 2
+    
 
     # *** Exercise 3.1 height-dependent diffusion coefficient ***
 
     # output initial fields
     its_out = -1  # output index
     if iiniout == 1 and imoist == 0:
-        its_out, Z, U, S, T = makeoutput(
-            unow, snow, zhtnow, its_out, 0, Z, U, S, T)
+        its_out, Z, U, S, T = makeoutput(unow, snow, zhtnow, its_out, 0, Z, U, S, T)
     elif iiniout == 1 and imoist == 1:
         if imicrophys == 0 or imicrophys == 1:
             if idthdt == 0:
@@ -537,13 +544,10 @@ if __name__ == "__main__":
         # -------------------------------------------------------------------------
         if its == 1:
             dtdx = dt / dx / 2.0
-
             dthetadt = None
-
             if imoist == 1 and idthdt == 1:
                 # No latent heating for first time-step
                 dthetadt = np.zeros((nxb, nz1))
-                
             if idbg == 1:
                 print("Using Euler forward step for 1. step ...\n")
         else:
@@ -552,35 +556,43 @@ if __name__ == "__main__":
         # *** Exercise 2.1 isentropic mass density ***
         # *** time step for isentropic mass density ***
         #
+        
+        # *** edit here ***
+        #snew = prog_isendens(sold, snow, unow,  dtdx)
 
+        #if idthdt == 1:
         snew = prog_isendens(sold, snow, unow, dtdx, dthetadt=dthetadt)
-
         #
         # *** Exercise 2.1 isentropic mass density ***
 
         # *** Exercise 4.1 / 5.1 moisture ***
         # *** time step for moisture scalars ***
-        # *** edit here ***
+        # *** edit here *** 
         #
 
         if imoist == 1:
-            if idbg == 1:
-                print("Add function call to prog_moisture")
-
+            qvnew, qcnew, qrnew = prog_moisture(unow, qvold, qcold, qrold, qvnow, qcnow, qrnow, dtdx, dthetadt=dthetadt)
+        
+        if imoist == 1 and imicrophys == 2:
+            ncnew, nrnew = prog_numdens(unow, ncold, nrold, ncnow, nrnow, dtdx, dthetadt=dthetadt)
+        
+#        if imoist == 1 and idthdt == 1:
+#           qvnew, qcnew, qrnew = prog_moisture(unow, qvold, qcold, qrold, qvnow, qcnow, qrnow, dtdx, dthetadt=dthetadt)
+        
+#            if imicrophys == 2:
+#                ncnew, nrnew = prog_numdens(unow, ncold, nrold, ncnow, nrnow, dtdx, dthetadt=dthetadt)
+        
         #
         # *** Exercise 4.1 / 5.1 moisture scalars ***
-
-            qvnew, qcnew, qrnew = prog_moisture(unow, qvold, qcold, qrold,
-                                                qvnow, qcnow, qrnow, dtdx, dthetadt=dthetadt)
-        # two-moment scheme: advect number densities
-            if imicrophys == 2:
-                ncnew, nrnew = prog_numdens(unow, ncold, nrold, ncnow, nrnow, dtdx, dthetadt=dthetadt) 
 
         # *** Exercise 2.1 velocity ***
         # *** time step for momentum ***
         #
+ #       unew = prog_velocity(uold, unow, mtg, dtdx)
 
+#        if idthdt == 1:
         unew = prog_velocity(uold, unow, mtg, dtdx, dthetadt=dthetadt)
+        # *** edit here ***
 
         #
         # *** Exercise 2.1 velocity ***
@@ -645,6 +657,7 @@ if __name__ == "__main__":
         # *** Diagnostic computation of pressure ***
         #
 
+        # *** edit here ***
         prs = diag_pressure(prs0, prs, snew)
 
         #
@@ -654,8 +667,8 @@ if __name__ == "__main__":
         # *** Calculate Exner function and Montgomery potential ***
         #
 
+        # *** edit here ***
         exn, mtg = diag_montgomery(prs, mtg, th0, topo, topofact)
-
         #
         # *** Exercise 2.2 Diagnostic computation of Montgomery ***
 
@@ -668,54 +681,47 @@ if __name__ == "__main__":
         if imoist == 1:
             # *** Exercise 4.1 Moisture ***
             # *** Clipping of negative values ***
-
-            qvnew[qvnew < 0.0] = 0.0
-            qcnew[qcnew < 0.0] = 0.0
-            qrnew[qrnew < 0.0] = 0.0
+            # *** edit here ***
+            # makeprofile
+            qvnew[qvnew < 0] = 0.0
+            qcnew[qcnew < 0] = 0.0
+            qrnew[qrnew < 0] = 0.0
 
             if imicrophys == 2:
-                ncnew[ncnew < 0.0] = 0.0
-                nrnew[nrnew < 0.0] = 0.0
+                ncnew[ncnew < 0] = 0
+                nrnew[nrnew < 0] = 0        
+        
+
 
             if idbg == 1:
                 print("Implement moisture clipping")
 
-            #
+            if imicrophys == 1:
             # *** Exercise 4.1 Moisture ***
+                [lheat, qvnew, qcnew, qrnew, prec, tot_prec] = kessler(snew, qvnew, qcnew, qrnew, 
+                                                                 prs, exn, zhtnow, th0, prec, tot_prec)
+            
+                if idbg == 1:
+                    print("Add function call to Kessler microphysics")
+                    
+            if imicrophys == 2:
+                # *** Exercise 5.1 Two Moment Scheme ***
+                # *** Two Moment Scheme ***
+                # *** edit here ***
+#                ncnew[ncnew < 0] = 0.0
+#                nrnew[nrnew < 0] = 0.0
 
-        if imoist == 1 and imicrophys == 1:
-            # *** Exercise 4.2 Kessler ***
-            # *** Kessler scheme ***
-
-            lheat, qvnew, qcnew, qrnew, prec, tot_prec = kessler(
-                snew, qvnew, qcnew, qrnew, prs,
-                exn, zhtnow, th0, prec, tot_prec)
-            #
-
-            if idbg == 1:
-                print("Add function call to Kessler microphysics")
-
-            #
-            # *** Exercise 4.2 Kessler ***
-        elif imoist == 1 and imicrophys == 2:
-            # *** Exercise 5.1 Two Moment Scheme ***
-            # *** Two Moment Scheme ***
-
-            lheat, qvnew, qcnew, qrnew, tot_prec, prec, ncnew, nrnew = seifert(
-                unew, th0, prs, snew,
-                qvnew, qcnew, qrnew,
-                exn, zhtold, zhtnow,
-                tot_prec, prec,
-                ncnew, nrnew,
-                dthetadt=dthetadt
-            )
-
-            # *** edit here ***
-            #
-
-            if idbg == 1:
-                print("Add function call to two moment microphysics")
-
+                [lheat, qvnew, qcnew, qrnew, tot_prec, prec, ncnew, nrnew] = seifert(unew, th0, prs,
+                                            snew, qvnew, qcnew, qrnew, exn, zhtold, zhtnow, 
+                                            tot_prec, prec, ncnew, nrnew,dthetadt=dthetadt)
+#                if idthdt == 1:
+#                    [lheat, qvnew, qcnew, qrnew, tot_prec, prec, ncnew, nrnew] = seifert(unew, th0, prs,
+#                                            snew, qvnew, qcnew, qrnew, exn, zhtold, zhtnow, 
+#                                            tot_prec, prec, ncnew, nrnew, dthetadt=dthetadt)
+                if idbg == 1:
+                    print("Add function call to two moment microphysics")
+            
+            
             #
             # *** Exercise 5.1 Two Moment Scheme ***
 
@@ -724,11 +730,9 @@ if __name__ == "__main__":
                 # Stagger lheat to model levels and compute tendency
                 k = np.arange(1, nz)
                 if imicrophys == 1:
-                    dthetadt[:, k] = topofact * 0.5 * \
-                        (lheat[:, k - 1] + lheat[:, k]) / dt
+                    dthetadt[:, k] = topofact * 0.5 * (lheat[:, k - 1] + lheat[:, k]) / dt
                 else:
-                    dthetadt[:, k] = topofact * 0.5 * \
-                        (lheat[:, k - 1] + lheat[:, k]) / (2.0 * dt)
+                    dthetadt[:, k] = topofact * 0.5 * (lheat[:, k - 1] + lheat[:, k]) / (2.0 * dt)
 
                 # force dthetadt to zeros at the bottom and at the top
                 dthetadt[:, 0] = 0.0
@@ -741,8 +745,7 @@ if __name__ == "__main__":
                 else:
                     # Relax latent heat fields
                     # ----------------------------
-                    dthetadt = relax(dthetadt, nx, nb,
-                                     dthetadtbnd1, dthetadtbnd2)
+                    dthetadt = relax(dthetadt, nx, nb, dthetadtbnd1, dthetadtbnd2)
             else:
                 dthetadt = np.zeros((nxb, nz1))
 
@@ -752,30 +755,32 @@ if __name__ == "__main__":
         # *** Exercise 2.1 / 4.1 / 5.1 ***
         # *** exchange isentropic mass density and velocity ***
         # *** (later also qv,qc,qr,nc,nr) ***
-        sold[:] = snow
-        snow[:] = snew
+        # *** edit here ***
+        sold = snow
+        snow = snew
+        uold = unow
+        unow = unew
 
-        uold[:] = unow
-        unow[:] = unew
-
+        # exchange moisture and number-density variables only when moisture is active
         if imoist == 1:
-            qvold[:] = qvnow
-            qvnow[:] = qvnew
+            qvold = qvnow
+            qvnow = qvnew
+            qcold = qcnow
+            qcnow = qcnew
+            qrold = qrnow
+            qrnow = qrnew
 
-            qcold[:] = qcnow
-            qcnow[:] = qcnew
+            if idbg == 1:
+                print("exchange moisture variables")
 
-            qrold[:] = qrnow
-            qrnow[:] = qrnew
-
+            # 2-moment scheme: exchange number densities only when active
             if imicrophys == 2:
-                ncold[:] = ncnow
-                ncnow[:] = ncnew
-
-                nrold[:] = nrnow
-                nrnow[:] = nrnew
-
-
+                ncold = ncnow
+                ncnow = ncnew
+                nrold = nrnow
+                nrnow = nrnew
+                if idbg == 1:
+                    print("exchange number densitiy variables")
 
         #
         # *** Exercise 2.1 / 4.1 / 5.1 ***
@@ -784,7 +789,6 @@ if __name__ == "__main__":
         # ---------------------------------
         if iprtcfl == 1:
             u_max = np.amax(np.abs(unow))
-            
             cfl_max = u_max * dtdx
             print("============================================================\n")
             print("CFL MAX: %g U MAX: %g m/s \n" % (cfl_max, u_max))
@@ -975,6 +979,5 @@ if __name__ == "__main__":
 
     if itime == 1:
         print("Total elapsed computation time: %g s\n" % (t1 - t0))
-
 
 # END OF SOLVER.PY

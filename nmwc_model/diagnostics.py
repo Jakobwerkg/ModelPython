@@ -48,21 +48,20 @@ def diag_montgomery(prs, mtg, th0, topo, topofact):
     # *** Exercise 2.2 Diagnostic computation of Montgomery ***
     # *** Calculate Exner function and Montgomery potential ***
     #
-
+    
     # Computation of Exner function
-    exn = np.zeros_like(prs)
+    # *** edit here ***
+    prs_safe = np.maximum(prs, 1.0)
+    exn = cp * (prs_safe / pref) ** rdcp
 
-    exn = cp * (prs/pref)**(rdcp)
-
-    # Add lower boundary condition at height mtg[:,0]
+    # Add lower boundary condition for Montgomery potential at level 0
+    # *** edit here ***
     mtg[:, 0] = g * topo.squeeze() * topofact + th0[0] * exn[:, 0]
-    mtg[:, 0] = mtg[:, 0] + dth*0.5*exn[:, 0]
-
-    # Integration loop upwards
-    for h in range(nz-1):
-        k = h+1
-        mtg[:, k] = mtg[:, k-1] + exn[:, k] * dth
-
+    
+    # Integration loop upwards to compute Montgomery potential
+    # *** edit here ***
+    for k in np.arange(1, nz):
+        mtg[:, k] = mtg[:, k - 1] + dth * exn[:, k]
     #
     # *** Exercise 2.2 Diagnostic computation  ***
 
@@ -107,14 +106,16 @@ def diag_pressure(prs0, prs, snew):
     # *** Diagnostic computation of pressure ***
     # *** (upper boundary condition and integration downwards) ***
     #
-
     # Upper boundary condition
+    # *** edit here ***
     prs[:, -1] = prs0[-1]
-
     # Integration loop downwards
-    for h in range(nz):
-        k = nz-h-1  # go from the top to the bottom but skip the first step because boundary condis
-        prs[:, k] = prs[:, k+1] + dth*snew[:, k]*g
+    # *** edit here ***
+    for k in np.arange(1, nz +1):
+        prs[:, nz-k] = prs[:,nz - k + 1] + dth * snew[:, nz - k] * g
+    #
+    # *** Exercise 2.2 Diagnostic computation of pressure ***
+
     return prs
 
 
@@ -179,8 +180,7 @@ def diag_density_and_temperature(s, exn, zht, th0):
     rho[:, k] = s * (th[:, k + 1] - th[:, k]) / (zht[:, k + 1] - zht[:, k])
 
     temp = np.zeros_like(s)
-    temp[:, k] = 0.5 * (th[:, k] * exn[:, k] +
-                        th[:, k + 1] * exn[:, k + 1]) / cp
+    temp[:, k] = 0.5 * (th[:, k] * exn[:, k] + th[:, k + 1] * exn[:, k + 1]) / cp
 
     return rho, temp
 

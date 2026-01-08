@@ -2,6 +2,15 @@
 import numpy as np
 import sys
 
+from nmwc_model.namelist import (
+
+    topomx,
+    topowd,
+    itopo2,
+    topo_c1, topo_c2,
+    topo_s1, topo_s2,
+    topo_A1, topo_A2)
+
 from nmwc_model.meteo_utilities import rrmixv1
 from nmwc_model.namelist import (
     bv00,
@@ -27,36 +36,112 @@ from nmwc_model.namelist import (
     z00,
 )
 
+import numpy as np
+
+def centered_range_profile(x_km, *, max_elev=2950.0, floor=1e-6):
+    """
+    Centered alpine range with strong northern & southern Kalkalpen-like massifs.
+    x_km can be any 1D coordinate; it will be normalized to the domain.
+    Returns a strictly positive profile in meters.
+    """
+    x = np.asarray(x_km, dtype=float)
+
+    # normalize to [-1, 1]
+    xc = 0.5 * (x.min() + x.max())
+    xn = (x - xc) / (0.5 * (x.max() - x.min()))
+    s = 0.5 * (xn + 1.0)  # [0,1]
+
+    # envelope (zero at boundaries)
+    env = np.sin(np.pi * s)
+    env = np.clip(env, 0.0, 1.0)
+
+    def gauss(mu, sig, A):
+        return A * np.exp(-0.5 * ((s - mu) / sig) ** 2)
+
+    # --- MAIN STRUCTURE ---
+    h = np.zeros_like(s)
+
+    # central Alps
+    h += gauss(0.50, 0.10, 1.00)
+
+    # southern Kalkalpen (left)
+    h += gauss(0.33, 0.055, 1.15)
+
+    # northern Kalkalpen (right)
+    h += gauss(0.67, 0.055, 1.10)
+
+    # secondary ridges
+    h += gauss(0.42, 0.05, 0.55)
+    h += gauss(0.58, 0.05, 0.55)
+
+    # --- ROUGHNESS ---
+    rough = (
+        0.20*np.sin(2*np.pi*(s*8.0  + 0.10)) +
+        0.14*np.sin(2*np.pi*(s*17.0 + 0.37)) +
+        0.09*np.sin(2*np.pi*(s*33.0 + 0.03))
+    )
+
+    boost = (
+        np.exp(-0.5*((s-0.50)/0.20)**2) +
+        0.8*np.exp(-0.5*((s-0.33)/0.12)**2) +
+        0.8*np.exp(-0.5*((s-0.67)/0.12)**2)
+    )
+
+    topo_unit = (h + rough * boost) * env
+
+    # positivity + scaling
+    topo_unit -= topo_unit.min()
+    topo_unit += floor
+
+    topo_m = topo_unit * (max_elev / topo_unit.max())
+    topo_m *= env
+    topo_m = np.maximum(topo_m, floor)
+
+    return topo_m
+
 
 def maketopo(topo, nxb):
-    """ Topography definition.
+    """Topography definition (fills topo and returns it)."""
 
-    Parameters
-    ----------
-    topo : np.ndarray
-        Array to be filled with the topography profile in [m].
-    nxb : int
-        Number of items in ``topo``.
-
-    Returns
-    -------
-    np.ndarray :
-        The input array ``topo`` filled with the topography profile in [m].
-    """
     if idbg == 1:
         print("Topography ...\n")
 
     x = np.arange(0, nxb, dtype=np.float64)
 
     x0 = (nxb - 1) / 2.0 + 1
-    x = (x + 1 - x0) * dx
-    toponf = topomx * np.exp(-(x / float(topowd)) ** 2)
+    x = (x + 1 - x0) * dx  # x in meters (centered)
 
+    if itopo2 == 1:
+        # Two-mountain Option B (Gaussians * sine envelope)
+        L = x[-1] - x[0]
+        xx = (x - x[0]) / L
+        envelope = np.sin(np.pi * xx)
+
+        c1, c2 = topo_c1, topo_c2
+        s1, s2 = topo_s1, topo_s2
+        A1, A2 = topo_A1, topo_A2
+
+        g1 = np.exp(-0.5 * ((xx - c1) / s1) ** 2)
+        g2 = np.exp(-0.5 * ((xx - c2) / s2) ** 2)
+
+        toponf = topomx * envelope * (A1 * g1 + A2 * g2)
+
+    elif itopo2 == 2:
+        # New centered range profile: MUST return toponf like other options
+        x_km = x * 1e-3  # meters -> km, same grid length nxb
+        toponf = centered_range_profile(x_km, max_elev=topomx, floor=1e-6)
+
+    else:
+        # Original single Gaussian mountain (default)
+        toponf = topomx * np.exp(-(x / float(topowd)) ** 2)
+
+    # Same smoothing / staggering you already had
     topo[1:-1, 0] = toponf[1:-1] + 0.25 * (
         toponf[0:-2] - 2.0 * toponf[1:-1] + toponf[2:]
     )
 
     return topo
+
 
 
 def makeprofile(
@@ -150,6 +235,7 @@ def makeprofile(
     if idbg == 1:
         print("Create initial profile ...\n")
 
+    
     exn0 = np.zeros(nz + 1)
     z0 = np.zeros(nz + 1)
     mtg0 = np.zeros(nz)
@@ -177,12 +263,12 @@ def makeprofile(
     # -------------------------------------------------------------
     exn0[0] = exn00
     for k in range(1, nz + 1):
-        exn0[k] = exn0[k - 1] - 16 * (g ** 2) * (th0[k] - th0[k - 1]) / (
+        exn0[k] = exn0[k - 1] - 16 * (g ** 2) * (th0[k] - th0[k - 1]) / (   # originally - 16 ...
             (bv0[k - 1] + bv0[k]) ** 2 * (th0[k - 1] + th0[k]) ** 2
         )
 
     prs0[:] = pref * (exn0[:] / cp) ** cpdr
-
+    
     # Upstream profile for geometric height (staggered)
     # -------------------------------------------------------------
     z0[0] = z00
@@ -212,16 +298,17 @@ def makeprofile(
         # *** use indices k_shl, k_sht, and wind speeds u00_sh, u00
         #
 
-        # wind below k=k_shl: u00_sh
-        u0[:k_shl] = u00_sh
+        # *** edit here ***
+        if ishear == 1:
 
-        # wind betweeen k=k_shl and k=k_sht lin decrease
-        u0[k_shl:k_sht+1] = np.linspace(u00_sh, u00, (k_sht-k_shl+1))
+            u0[0:k_shl] = u00_sh
 
-        # wind above k=K_shl is u00
-        # is already there
+            u0[k_shl:k_sht] = np.linspace(
+                u00_sh, u00, k_sht - k_shl, endpoint=False
+            )
 
-        #
+            u0[k_sht:nz] = u00
+        
         # *** Exercise 3.3 Downslope windstorm ***
     else:
         if idbg == 1:
@@ -236,22 +323,39 @@ def makeprofile(
         # *** for rh0; then use function rrmixv1 to compute qv0 ***
         #
 
-        # rh0 is zero everywhere in the beginning
+        # *** edit here ***
         rhmax = 0.98
-        kc = 12
         kw = 10
-
-        rh0[kc-kw:kc+kw] = rhmax * \
-            (np.cos(np.linspace(-kw, kw, (2 * kw))/kw*np.pi/2))**2
-
-        # compute qv0
-        for k in range(nz):
-            qv0[k] = rrmixv1(
-                0.5*(prs0[k]+prs0[k+1])/100,
-                0.5*(th0[k]/cp*exn0[k]+th0[k+1]/cp*exn0[k+1]),
-                rh0[k],
-                2)
-
+        kc = 12  # 11 # because Python starts at 0, and kw is the half width of the moisture layer
+        kr = np.arange(kc-kw+1, kc+kw)
+        rh0[kr] = rhmax * np.cos(abs(kr-kc)/float(kw) * np.pi/2)**2
+        qv0[kr] = rrmixv1(0.5 * (prs0[kr]+prs0[kr+1]) / 100,
+                          0.5 * (th0[kr]/cp * exn0[kr] +
+                                 th0[kr+1]/cp * exn0[kr+1]),
+                          rh0[kr], 2)
+        
+        
+        
+        
+        
+        
+        
+        
+#        rhmax = 0.98
+#        kc = 12
+#        kw = 10
+#        
+#        for k in range(nz):
+#            if kc - kw < k < kc + kw:
+#                rh0[k] = rhmax * (np.cos((np.abs(k - kc) / kw) * (np.pi / 2)))**2 
+#            else:
+#                rh0[k] = 0.0
+#               
+#            qv0[k] = rrmixv1(
+#               0.5*(prs0[k]+prs0[k+1])/100,
+#                0.5*(th0[k]/cp*exn0[k]+th0[k+1]/cp*exn0[k+1]),
+#                rh0[k],
+#                2)
         #
         # *** Exercise 4.1 Initial Moisture profile ***
 
@@ -276,10 +380,10 @@ def makeprofile(
         qvold = qv0 * np.ones_like(qvold, dtype=float)
         qvnow = qv0 * np.ones_like(qvold, dtype=float)
 
-        #         # Wave-like perturbation to check tracer advection
-        # wave = np.sin(np.linspace(0, 2*np.pi, len(qvold)))**2
-        # qvold *= wave[:, None]
-        # qvnow *= wave[:, None]
+        # Wave-like perturbation to check tracer advection
+        #wave = 1.1 * np.sin(np.linspace(0, 2*np.pi, len(qvold)))**2
+        #qvold *= wave[:, None]
+        #qvnow *= wave[:, None]
 
         qcold = qc0 * np.ones_like(qcold, dtype=float)
         qcnow = qc0 * np.ones_like(qcold, dtype=float)
@@ -292,6 +396,12 @@ def makeprofile(
             ncnow = nc0 * np.ones_like(ncold, dtype=float)
             nrold = nr0 * np.ones_like(nrold, dtype=float)
             nrnow = nr0 * np.ones_like(nrold, dtype=float)
+
+            # wave = np.sin(np.linspace(0, 2*np.pi, len(ncold)))**2
+            # ncnow *= wave[:, None]
+            # ncold = ncnow.copy()
+
+        # Return
 
     if imoist == 0:
         return th0, exn0, prs0, z0, mtg0, s0, u0, sold, snow, uold, unow, mtg, mtgnew

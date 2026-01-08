@@ -41,31 +41,28 @@ def prog_isendens(sold, snow, unow, dtdx, dthetadt=None):
     # Declare
     snew = np.zeros_like(snow)
 
-    i = nb + np.arange(0, nx)
-
-    snew[i, :] = sold[i, :]-dtdx*(
-        snow[i+1, :]*0.5*(
-            unow[i+1, :]+unow[i+2, :]
-        ) -
-        snow[i-1, :]*0.5*(
-            unow[i-1, :]+unow[i, :]
-        )
-    )
-
     # *** Exercise 2.1/5.2 isentropic mass density ***
-        # --- Vertical advection (Ex. 5.2) ---
-    if dthetadt is not None and idthdt == 1:
+    # *** time step for isentropic mass density ***
+    # *** edit here ***
+    #
+    i = nb+np.arange(0, nx)
+    snew[i,:] = sold[i,:] - 0.5 * dtdx * (snow[i+1,:] * (unow[i+1,:] + unow[i+2,:]) - snow[i-1,:] * (unow[i-1,:] + unow[i,:]))
+    
+#    if dthetadt is not None:
+    if idthdt == 1:
+
         k = np.arange(1, nz-1)
+    
         ii, kk = np.ix_(i, k)
 
-        # interpolate dthetadt from interfaces (k, k+1) to full level k
-        dthdt_s = 0.5 * (dthetadt[ii, kk] + dthetadt[ii, kk + 1])
+        # dthetadt_centered = 0.5 * (dthetadt[ii, kk] + dthetadt[ii, kk+1])
 
-        # centered vertical derivative of s
-        ds_dth = (snow[ii, kk + 1] - snow[ii, kk - 1]) / (2.0 * dth)
-
-        # add vertical advection tendency
-        snew[ii, kk] = snew[ii, kk] - dt * dthdt_s * ds_dth
+        # snew[ii, kk] -= dt * dthetadt_centered * (snow[ii, kk+1] - snow[ii, kk-1]) / (2 * dth)
+        snew[ii, kk] = snew[ii, kk] - dt / dth * (0.5 * (dthetadt[ii, kk + 1] + dthetadt[ii, kk + 2]) * snow[ii, kk + 1]- 0.5 * (dthetadt[ii, kk - 1] + dthetadt[ii, kk]) * snow[ii, kk - 1])
+        
+    #
+    
+    # *** Exercise 2.1/5.2 isentropic mass density ***
 
     return snew
 
@@ -98,31 +95,28 @@ def prog_velocity(uold, unow, mtg, dtdx, dthetadt=None):
     # Declare
     unew = np.zeros_like(unow)
 
-    i = nb + np.arange(0, nx+1)
-
-    unew[i, :] = uold[i, :] - unow[i, :]*dtdx*(
-        unow[i+1, :]-unow[i-1, :]
-    ) - (
-        2*dtdx*(mtg[i, :]-mtg[i-1, :])
-    )
-
-        # --- Vertical advection (Ex. 5.2) ---
-    if dthetadt is not None and idthdt == 1:
+    # *** Exercise 2.1/5.2 velocity ***
+    # *** time step for momentum ***
+    # *** edit here ***
+    #
+    i = nb + np.arange(0, nx + 1)
+    unew[i,:] = uold[i,:] - unow[i,:] * dtdx * (unow[i+1,:] - unow[i-1,:]) - 2 * dtdx * (mtg[i,:] - mtg[i-1,:])
+    
+#    if dthetadt is not None:
+    if idthdt == 1:
+    
         k = np.arange(1, nz-1)
-        ii, kk = np.ix_(i, k)
 
-        # First: interface -> full level at scalar columns
-        dthdt_c_im1 = 0.5 * (dthetadt[ii - 1, kk] + dthetadt[ii - 1, kk + 1])  # column i-1
-        dthdt_c_i   = 0.5 * (dthetadt[ii,     kk] + dthetadt[ii,     kk + 1])  # column i
+        ii, kk = np.ix_(i,k)
 
-        # Second: horizontal average to u-point
-        dthdt_u = 0.5 * (dthdt_c_im1 + dthdt_c_i)
+        dthetadt_centered = 0.5 * (dthetadt[ii, kk] + dthetadt[ii, kk+1])
 
-        # centered vertical derivative of u
-        du_dth = (unow[ii, kk + 1] - unow[ii, kk - 1]) / (2.0 * dth)
+        unew[ii, kk] -= dt * dthetadt_centered * (unow[ii, kk+1] - unow[ii, kk-1]) / (2 * dth)
 
-        # update
-        unew[ii, kk] = unew[ii, kk] - dt * dthdt_u * du_dth
+        #dthetadt_interpolated = 0.25 * (dthetadt[ii, kk] + dthetadt[ii, kk+1] + dthetadt[ii-1, kk] + dthetadt[ii-1, kk+1])
+        #unew[ii, kk] = unew[ii, kk] - dt/dth * dthetadt_interpolated * (unow[ii, kk+1] - unow[ii, kk-1])
+    #
+    # *** Exercise 2.1/5.2 velocity ***
 
     return unew
 
@@ -166,32 +160,42 @@ def prog_moisture(unow, qvold, qcold, qrold, qvnow, qcnow, qrnow, dtdx, dthetadt
         print("Prognostic step: Moisture scalars ...\n")
 
     # Declare
-    qvnew = np.zeros_like(qvnow) # water vapour
-    qcnew = np.zeros_like(qcnow) # cloud liquid
-    qrnew = np.zeros_like(qrnow) # rain water
+    qvnew = np.zeros_like(qvnow)
+    qcnew = np.zeros_like(qcnow)
+    qrnew = np.zeros_like(qrnow)
 
     # *** Exercise 4.1/5.2 moisture advection ***
-        
-    i = nb + np.arange(0, nx)
-
-    qvnew[i, :] = qvold[i, :] - 0.5 * dtdx * unow[i, :] * (qvnow[i + 1, :] - qvnow[i - 1, :])
-    qcnew[i, :] = qcold[i, :] - 0.5 * dtdx * unow[i, :] * (qcnow[i + 1, :] - qcnow[i - 1, :])
-    qrnew[i, :] = qrold[i, :] - 0.5 * dtdx * unow[i, :] * (qrnow[i + 1, :] - qrnow[i - 1, :])
-
+    # *** edit here ***
     #
-    if dthetadt is not None and idthdt == 1:
+
+    i = nb + np.arange(0, nx)
+    u_center = 0.5 * (unow[i, :] + unow[i+1, :])
+        
+    qvnew[i, :] = qvold[i, :] - dtdx * u_center * (qvnow[i+1, :] - qvnow[i-1, :])
+    qcnew[i, :] = qcold[i, :] - dtdx * u_center * (qcnow[i+1, :] - qcnow[i-1, :])
+    qrnew[i, :] = qrold[i, :] - dtdx * u_center * (qrnow[i+1, :] - qrnow[i-1, :])
+    
+#    if dthetadt is not None:
+    if idthdt == 1:
+
         k = np.arange(1, nz-1)
+
         ii, kk = np.ix_(i, k)
 
-        dthdt_s = 0.5 * (dthetadt[ii, kk] + dthetadt[ii, kk + 1])
+        dthetadt_centered = 0.5 * (dthetadt[ii, kk] + dthetadt[ii, kk+1])
 
-        dqv_dth = (qvnow[ii, kk + 1] - qvnow[ii, kk - 1]) / (2.0 * dth)
-        dqc_dth = (qcnow[ii, kk + 1] - qcnow[ii, kk - 1]) / (2.0 * dth)
-        dqr_dth = (qrnow[ii, kk + 1] - qrnow[ii, kk - 1]) / (2.0 * dth)
-
-        qvnew[ii, kk] = qvnew[ii, kk] - dt * dthdt_s * dqv_dth
-        qcnew[ii, kk] = qcnew[ii, kk] - dt * dthdt_s * dqc_dth
-        qrnew[ii, kk] = qrnew[ii, kk] - dt * dthdt_s * dqr_dth
+        qvnew[ii, kk] -= dt * dthetadt_centered * (qvnow[ii, kk+1] - qvnow[ii, kk-1]) / (dth)
+        qcnew[ii, kk] -= dt * dthetadt_centered * (qcnow[ii, kk+1] - qcnow[ii, kk-1]) / (dth)
+        qrnew[ii, kk] -= dt * dthetadt_centered * (qrnow[ii, kk+1] - qrnow[ii, kk-1]) / (dth)
+        
+#        qvnew[ii, kk] -= dt * dthetadt_centered * (qvnow[ii, kk+1] - qvnow[ii, kk-1]) / (2 * dth)
+#        qcnew[ii, kk] -= dt * dthetadt_centered * (qcnow[ii, kk+1] - qcnow[ii, kk-1]) / (2 * dth)
+#        qrnew[ii, kk] -= dt * dthetadt_centered * (qrnow[ii, kk+1] - qrnow[ii, kk-1]) / (2 * dth)
+        
+        
+        #qvnew[ii, kk] = qvnew[ii, kk] - dt * 0.5 * (dthetadt[ii, kk] + dthetadt[ii, kk+1]) * (qvnow[ii, kk+1] - qvnow[ii, kk-1]) / dth
+        #qcnew[ii, kk] = qcnew[ii, kk] - dt * 0.5 * (dthetadt[ii, kk] + dthetadt[ii, kk+1]) * (qcnow[ii, kk+1] - qcnow[ii, kk-1]) / dth
+        #qrnew[ii, kk] = qrnew[ii, kk] - dt * 0.5 * (dthetadt[ii, kk] + dthetadt[ii, kk+1]) * (qrnow[ii, kk+1] - qrnow[ii, kk-1]) / dth
     # *** Exercise 4.1/5.2  ***
 
     return qvnew, qcnew, qrnew
@@ -226,6 +230,11 @@ def prog_numdens(unow, ncold, nrold, ncnow, nrnow, dtdx, dthetadt=None):
         Number density of precipitation water in [g^-1] defined at the next time level.
     """
 
+    print("ENTER prog_numdens")
+    print("  unow max/min:", unow.max(), unow.min())
+    print("  ncnow max/min:", ncnow.max(), ncnow.min())
+    print("  nrold max/min:", nrold.max(), nrold.min())
+
     if idbg == 1:
         print("Prognostic step: Number densities ...")
 
@@ -234,23 +243,40 @@ def prog_numdens(unow, ncold, nrold, ncnow, nrnow, dtdx, dthetadt=None):
     nrnew = np.zeros_like(nrnow)
 
     # *** Exercise 5.1/5.2 number densities ***
+    # *** edit here ***
+    #
+
     i = nb + np.arange(0, nx)
+    u_center = 0.5 * (unow[i, :] + unow[i+1, :])
 
-    ncnew[i, :] = ncold[i, :] - 0.5 * dtdx * unow[i, :] * (ncnow[i + 1, :] - ncnow[i - 1, :])
-    nrnew[i, :] = nrold[i, :] - 0.5 * dtdx * unow[i, :] * (nrnow[i + 1, :] - nrnow[i - 1, :])
+    print("  u_center max/min:", u_center.max(), u_center.min())
+    
+    ncnew[i, :] = ncold[i, :] - dtdx * u_center * (ncnow[i+1, :] - ncnow[i-1, :])
+    nrnew[i, :] = nrold[i, :] - dtdx * u_center * (nrnow[i+1, :] - nrnow[i-1, :])
+    
+#    if dthetadt is not None:
+    if idthdt == 1:
 
-        ## --- Vertical advection (Ex. 5.2) ---
-    if dthetadt is not None and idthdt == 1:
-        k = np.arange(1, nz-1)
+        k = np.arange(1, nz-1) 
+
         ii, kk = np.ix_(i, k)
 
-        dthdt_s = 0.5 * (dthetadt[ii, kk] + dthetadt[ii, kk + 1])
+        dthetadt_centered = 0.5 * (dthetadt[ii, kk] + dthetadt[ii, kk+1])
 
-        dnc_dth = (ncnow[ii, kk + 1] - ncnow[ii, kk - 1]) / (2.0 * dth)
-        dnr_dth = (nrnow[ii, kk + 1] - nrnow[ii, kk - 1]) / (2.0 * dth)
+        ncnew[ii, kk] -= dt * dthetadt_centered * (ncnow[ii, kk+1] - ncnow[ii, kk-1]) / (dth)
+        nrnew[ii, kk] -= dt * dthetadt_centered * (nrnow[ii, kk+1] - nrnow[ii, kk-1]) / (dth)
+        
+#         ncnew[ii, kk] -= dt * dthetadt_centered * (ncnow[ii, kk+1] - ncnow[ii, kk-1]) / (2 * dth)
+#        nrnew[ii, kk] -= dt * dthetadt_centered * (nrnow[ii, kk+1] - nrnow[ii, kk-1]) / (2 * dth)
+        
+       
+        
+        #ncnew[ii, kk] = ncnew[ii, kk] - dt * 0.5 * (dthetadt[ii, kk] + dthetadt[ii, kk+1]) * (ncnow[ii, kk+1] - ncnow[ii, kk-1]) / dt
+        #nrnew[ii, kk] = nrnew[ii, kk] - dt * 0.5 * (dthetadt[ii, kk] + dthetadt[ii, kk+1]) * (nrnow[ii, kk+1] - nrnow[ii, kk-1]) / dt
 
-        ncnew[ii, kk] = ncnew[ii, kk] - dt * dthdt_s * dnc_dth
-        nrnew[ii, kk] = nrnew[ii, kk] - dt * dthdt_s * dnr_dth
+#    print("EXIT prog_numdens ncnew max/min:", ncnew.max(), ncnew.min())
+#    print("EXIT prog_numdens nrnew max/min:", nrnew.max(), nrnew.min())
+
     #
     # *** Exercise 5.1/5.2  *
 

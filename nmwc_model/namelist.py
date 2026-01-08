@@ -21,24 +21,19 @@ nx = 100  # number of grid points in horizontal direction
 dx = xl / nx  # horizontal resolution [m]
 thl = 150.0  # domain depth  [K]
 nz = 60  # vertical resolution
-dt = 5  # time step [s]
-diff = 0.02  # (horizontal) diffusion coefficient
+dt = 1  # time step [s]
+diff = 0.01  # (horizontal) diffusion coefficient
 time = 1 * 60 * 60  # integration time [s]
 
-# Topography
-# -------------------------------------------------
-topomx = 1000  # mountain height [m]
-topowd = 50000  # mountain half width [m]
-topotim = 1800  # mountain growth time [s]
 
 # Initial atmosphere
 # -------------------------------------------------
-u00 = 22.5  # initial velocity [m/s]
-bv00 = 0.015 # Brunt-Vaisalla frequency [1/s]
-th00 = 280.0  # potential temperature at surface
+u00 = 20  # initial velocity [m/s]
+bv00 = 0.012 # Brunt-Vaisalla frequency [1/s]
+th00 = 300.0  # potential temperature at surface
 
-ishear = 0  # wind shear simulation (0 = no shear, 1 = shear)
-k_shl = 5  # bottom level of wind shear layer (ishear = 1)
+ishear = 1  # wind shear simulation (0 = no shear, 1 = shear)
+k_shl = 3 # bottom level of wind shear layer (ishear = 1)
 # bottom level of wind layer is 0 (index)
 k_sht = 8  # top level of wind shear layer (ishear = 1)
 # top level of wind layer is nz-1 (index)
@@ -101,5 +96,38 @@ nx1 = nx + 1  # number of staggered gridpoints in x
 nz1 = nz + 1  # number of staggered gridpoints in z
 nxb = nx + 2 * nb  # x range of unstaggered variable
 nxb1 = nx1 + 2 * nb  # x range of staggered variable
+
+
+
+# Topography
+# -------------------------------------------------
+topomx = 1500  # mountain height [m]
+topowd = 20000  # mountain half width [m]
+topotim = 1800  # mountain growth time [s]
+
+
+
+# PROJEKT 2
+
+# create the topography
+# ----------------------------------
+# Topography selector: 0 = old single Gaussian, 1 = two-mountain (Option B), 2 = Alps)
+itopo2 = 2
+
+# Mountain centers (fractions of domain)
+topo_c1 = 0.4
+topo_c2 = 0.6
+
+# Narrow widths (key!)
+topo_s1 = 0.1
+topo_s2 = 0.07
+
+# Comparable peak heights
+topo_A1 = 1.0
+topo_A2 = 1.0
+
+
+
+
 
 # END OF NAMELIST.PY
