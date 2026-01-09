@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# -- coding: utf-8 --
 """
 File defining the global variables used in the main program
 and all subfunctions.
@@ -10,34 +10,34 @@ and all subfunctions.
 
 # Output control
 # -------------------------------------------------
-out_fname = "output_ex5"  # file name of output
+out_fname = "output_ex5_rhein_moist"  # file name of output
 iout = 360  # write every iout-th time-step into the output file
 iiniout = 1  # write initial field (0 = no, 1 = yes)
 
 # Domain size
 # -------------------------------------------------
 xl = 500000.0  # domain size  [m]
-nx = 100  # number of grid points in horizontal direction
+nx = 150  # number of grid points in horizontal direction
 dx = xl / nx  # horizontal resolution [m]
 thl = 150.0  # domain depth  [K]
 nz = 60  # vertical resolution
 dt = 1  # time step [s]
 diff = 0.01  # (horizontal) diffusion coefficient
-time = 1 * 60 * 60  # integration time [s]
+time = 12 * 60 * 60  # integration time [s]
 
 
 # Initial atmosphere
 # -------------------------------------------------
-u00 = 20  # initial velocity [m/s]
+u00 = 10  # initial velocity [m/s]
 bv00 = 0.012 # Brunt-Vaisalla frequency [1/s]
 th00 = 300.0  # potential temperature at surface
 
 ishear = 1  # wind shear simulation (0 = no shear, 1 = shear)
-k_shl = 3 # bottom level of wind shear layer (ishear = 1)
+k_shl = 0 # bottom level of wind shear layer (ishear = 1)
 # bottom level of wind layer is 0 (index)
-k_sht = 8  # top level of wind shear layer (ishear = 1)
+k_sht = 3  # top level of wind shear layer (ishear = 1)
 # top level of wind layer is nz-1 (index)
-u00_sh = 10.0  # initial velocity below shear layer [m/s] (ishear = 1)
+u00_sh = 2.0  # initial velocity below shear layer [m/s] (ishear = 1)
 # u00 is speed above shear layer [m/s]   #orig 0.
 
 # Boundaries
@@ -56,10 +56,10 @@ itime = 1  # print computation time (0 = not print, 1 = print)
 # Physics: Moisture
 # -------------------------------------------------
 imoist = 1  # include moisture (0 = dry, 1 = moist)
-imoist_diff = 1  # apply diffusion to qv, qc, qr (0 = off, 1 = on)
+imoist_diff = 2  # apply diffusion to qv, qc, qr (0 = off, 1 = on)
 imicrophys = 2  # include microphysics (0 = off, 1 = kessler, 2 = two moment)
 idthdt = 1  # couple physics to dynamics (0 = off, 1 = on)
-iern = 0  # evaporation of rain droplets (0 = off, 1 = on)
+iern = 1  # evaporation of rain droplets (0 = off, 1 = on)
 
 # Options for Kessler scheme
 # -------------------------------------------------
@@ -101,9 +101,15 @@ nxb1 = nx1 + 2 * nb  # x range of staggered variable
 
 # Topography
 # -------------------------------------------------
-topomx = 1500  # mountain height [m]
-topowd = 20000  # mountain half width [m]
+topomx = 870  # mountain height [m]
+topowd = 10000  # mountain half width [m]
 topotim = 1800  # mountain growth time [s]
+
+
+# topography option 2 (centered_range_profile)
+topo_min = 155.0     # [m]
+topo_max = 970.0     # [m]
+topo_flank = 50.0    # [km]
 
 
 
@@ -115,12 +121,12 @@ topotim = 1800  # mountain growth time [s]
 itopo2 = 2
 
 # Mountain centers (fractions of domain)
-topo_c1 = 0.4
-topo_c2 = 0.6
+topo_c1 = 0.3
+topo_c2 = 0.7
 
 # Narrow widths (key!)
-topo_s1 = 0.1
-topo_s2 = 0.07
+topo_s1 = 0.05
+topo_s2 = 0.05
 
 # Comparable peak heights
 topo_A1 = 1.0

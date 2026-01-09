@@ -11,6 +11,8 @@ from nmwc_model.namelist import (
     topo_s1, topo_s2,
     topo_A1, topo_A2)
 
+
+from nmwc_model.namelist import topo_min, topo_max, topo_flank # new imports for centered_range_profile
 from nmwc_model.meteo_utilities import rrmixv1
 from nmwc_model.namelist import (
     bv00,
@@ -36,67 +38,131 @@ from nmwc_model.namelist import (
     z00,
 )
 
-import numpy as np
 
-def centered_range_profile(x_km, *, max_elev=2950.0, floor=1e-6):
+
+def centered_range_profile(
+    x_km, *,
+    min_elev=155.0,
+    max_elev=870.0,
+    flank_km=50.0,
+    floor=1e-6
+):
     """
-    Centered alpine range with strong northern & southern Kalkalpen-like massifs.
-    x_km can be any 1D coordinate; it will be normalized to the domain.
-    Returns a strictly positive profile in meters.
+    Synthetic topography shaped like the provided elevation profile, with added
+    50 km flanks on both sides that ramp from 0 m at the boundary to min_elev.
+
+    Domain structure:
+      [ xmin ........ xmin+flank_km | core mountains | xmax-flank_km ....... xmax ]
+         ramp 0->min_elev               scaled to [min_elev, max_elev]         ramp min_elev->0
+
+    Returns strictly positive meters.
     """
     x = np.asarray(x_km, dtype=float)
+    xmin, xmax = float(x.min()), float(x.max())
+    L = xmax - xmin
 
-    # normalize to [-1, 1]
-    xc = 0.5 * (x.min() + x.max())
-    xn = (x - xc) / (0.5 * (x.max() - x.min()))
-    s = 0.5 * (xn + 1.0)  # [0,1]
+    if flank_km < 0:
+        raise ValueError("flank_km must be >= 0.")
+    if L <= 2.0 * flank_km:
+        raise ValueError(
+            f"Domain length {L:.3f} km is too short for 2*flank_km={2*flank_km:.3f} km."
+        )
+    if max_elev <= min_elev:
+        raise ValueError("max_elev must be > min_elev.")
 
-    # envelope (zero at boundaries)
-    env = np.sin(np.pi * s)
-    env = np.clip(env, 0.0, 1.0)
+    # Masks
+    xL = xmin + flank_km
+    xR = xmax - flank_km
+    left  = x < xL
+    right = x > xR
+    core  = ~(left | right)
 
-    def gauss(mu, sig, A):
-        return A * np.exp(-0.5 * ((s - mu) / sig) ** 2)
+    topo_m = np.zeros_like(x, dtype=float)
 
-    # --- MAIN STRUCTURE ---
-    h = np.zeros_like(s)
+    # --- left/right flanks: linear ramp between 0 and min_elev ---
+    if flank_km > 0:
+        topo_m[left]  = min_elev * (x[left]  - xmin) / flank_km
+        topo_m[right] = min_elev * (xmax - x[right]) / flank_km
 
-    # central Alps
-    h += gauss(0.50, 0.10, 1.00)
+    # Clip to [0, min_elev] for numerical cleanliness
+    topo_m[left]  = np.clip(topo_m[left],  0.0, min_elev)
+    topo_m[right] = np.clip(topo_m[right], 0.0, min_elev)
 
-    # southern Kalkalpen (left)
-    h += gauss(0.33, 0.055, 1.15)
+    # --- core mountains: your profile shape, scaled to [min_elev, max_elev] ---
+    if np.any(core):
+        xc = x[core]
 
-    # northern Kalkalpen (right)
-    h += gauss(0.67, 0.055, 1.10)
+        # normalize to s in [0, 1] over the core region only
+        s = (xc - xL) / (xR - xL + 1e-15)
 
-    # secondary ridges
-    h += gauss(0.42, 0.05, 0.55)
-    h += gauss(0.58, 0.05, 0.55)
+        def gauss(mu, sig, A):
+            return A * np.exp(-0.5 * ((s - mu) / sig) ** 2)
 
-    # --- ROUGHNESS ---
-    rough = (
-        0.20*np.sin(2*np.pi*(s*8.0  + 0.10)) +
-        0.14*np.sin(2*np.pi*(s*17.0 + 0.37)) +
-        0.09*np.sin(2*np.pi*(s*33.0 + 0.03))
-    )
+        # Envelope that is 0 at core edges -> ensures core edges are exactly min_elev
+        env = np.sin(np.pi * s)
+        env = np.clip(env, 0.0, 1.0)
 
-    boost = (
-        np.exp(-0.5*((s-0.50)/0.20)**2) +
-        0.8*np.exp(-0.5*((s-0.33)/0.12)**2) +
-        0.8*np.exp(-0.5*((s-0.67)/0.12)**2)
-    )
+        # Base structure (positive-ish)
+        h = np.zeros_like(s)
 
-    topo_unit = (h + rough * boost) * env
+        # Left rolling terrain (within core)
+        h += gauss(0.10, 0.10, 0.55)
+        h += gauss(0.22, 0.09, 0.45)
+        h += gauss(0.30, 0.08, 0.35)
 
-    # positivity + scaling
-    topo_unit -= topo_unit.min()
-    topo_unit += floor
+        # Sharp main peak near ~58 km of the original 198 km profile.
+        # Here we keep the relative position in the core: 58/198 ≈ 0.293
+        h += gauss(0.293, 0.020, 1.10)
 
-    topo_m = topo_unit * (max_elev / topo_unit.max())
-    topo_m *= env
+        # Small ridge after peak
+        h += gauss(0.33, 0.03, 0.30)
+
+        # Rugged right massif (relative positions)
+        h += gauss(0.66, 0.08, 1.05)
+        h += gauss(0.72, 0.06, 0.70)
+
+        # Long tail / plateau
+        h += gauss(0.82, 0.12, 0.40)
+
+        # Carve the deep central valley
+        valley = (
+            gauss(0.465, 0.055, 1.10) +
+            gauss(0.515, 0.040, 0.55)
+        )
+        h = h - valley
+        h = np.maximum(h, 0.0)
+
+        # Roughness (suppressed in the valley)
+        rough = (
+            0.10 * np.sin(2*np.pi*(s*12.0 + 0.10)) +
+            0.07 * np.sin(2*np.pi*(s*27.0 + 0.37)) +
+            0.05 * np.sin(2*np.pi*(s*49.0 + 0.03))
+        )
+
+        boost = (
+            0.9 * np.exp(-0.5*((s-0.20)/0.18)**2) +
+            1.2 * np.exp(-0.5*((s-0.70)/0.12)**2)
+        )
+        valley_suppress = 1.0 - np.exp(-0.5*((s-0.49)/0.07)**2)
+
+        topo_unit = (h + rough * boost * valley_suppress)
+
+        # Apply envelope so core edges go to zero relief
+        topo_unit *= env
+
+        # Normalize relief to [0, 1]
+        topo_unit -= topo_unit.min()
+        topo_unit += floor
+        topo_unit /= topo_unit.max()
+
+        # Scale to [min_elev, max_elev]
+        topo_core = min_elev + topo_unit * (max_elev - min_elev)
+
+        # Ensure strictly positive
+        topo_m[core] = np.maximum(topo_core, floor)
+
+    # Final positivity
     topo_m = np.maximum(topo_m, floor)
-
     return topo_m
 
 
@@ -126,10 +192,16 @@ def maketopo(topo, nxb):
 
         toponf = topomx * envelope * (A1 * g1 + A2 * g2)
 
+
     elif itopo2 == 2:
-        # New centered range profile: MUST return toponf like other options
-        x_km = x * 1e-3  # meters -> km, same grid length nxb
-        toponf = centered_range_profile(x_km, max_elev=topomx, floor=1e-6)
+        x_km = x * 1e-3  # meters -> km
+        toponf = centered_range_profile(
+            x_km,
+            min_elev=topo_min,
+            max_elev=topo_max,
+            flank_km=topo_flank,
+            floor=1e-6
+        )
 
     else:
         # Original single Gaussian mountain (default)

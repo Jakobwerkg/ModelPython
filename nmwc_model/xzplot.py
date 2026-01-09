@@ -274,15 +274,19 @@ def compute_topo_for_plot(var):
         topo_plot = topo_km
 
     elif itopo2 == 2:
-        # New profile: DO NOT re-center; the function normalizes internally anyway
-        topo_km = centered_range_profile(
-            x_km,
-            max_elev=topomx_km,
-            floor=1e-6  # km
-        )
+        from nmwc_model.namelist import topo_min, topo_max, topo_flank
 
+        # centered_range_profile returns METERS -> convert to km for plotting
+        topo_m = centered_range_profile(
+            x_km,
+            min_elev=topo_min,
+            max_elev=topo_max,
+            flank_km=topo_flank,
+            floor=1e-6
+        )
+        topo_plot = topo_m * 1e-3  # m -> km
         x_plot = x_km
-        topo_plot = topo_km
+
 
     else:
         # Old Gaussian: centered x (works if x_km is centered, as in standard output)
